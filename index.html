@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  /* (Mismo CSS que antes, no lo repito para no alargar, pero está incluido en el código final) */
+  /* (Mismo CSS que antes, no lo repito para no alargar, pero está completo en el archivo final) */
   :root {
     --bg: #0B1512;
     --surface: #12211B;
@@ -643,21 +643,16 @@ function renderObjectives(){
   const tipoReqFiltro = document.getElementById('filterTipoReq').value;
 
   let filtered = objectives.filter(o=>{
-    // Estado
     const st = getStatus(o);
     if(estadoFiltro!=='todos' && st!==estadoFiltro) return false;
 
-    // Texto
     if(texto && !(o.title.toLowerCase().includes(texto) || (o.groupName||'').toLowerCase().includes(texto))) return false;
 
-    // Modo de juego
     if(modoFiltro !== 'todos'){
-      // Si el objetivo tiene "Cualquier modo FUT" o modes vacío, siempre debe aparecer (a menos que filtremos por "todos")
       const esCualquier = o.modes.length === 0 || o.modes.includes('Cualquier modo FUT');
       if(!esCualquier && !o.modes.includes(modoFiltro)) return false;
     }
 
-    // Tipo de requisito
     if(tipoReqFiltro !== 'todos'){
       const tieneTipo = o.requirements.some(r => {
         let field = r.criteriaField || '';
@@ -990,10 +985,12 @@ document.getElementById('btnGuardarObjetivo').addEventListener('click', ()=>{
 
 /* ===================== PLANIFICADOR MEJORADO ===================== */
 function generarResumen(selected) {
-  const mapa = {};
-  selected.forEach(o => {
-    o.requirements.forEach(r => {
-      if (r.kind === 'once' || r.kind === 'minuto') {
+  const resumen = { once: [], minuto: [] };
+  const tipos = ['once', 'minuto'];
+  tipos.forEach(kind => {
+    const mapa = {};
+    selected.forEach(o => {
+      o.requirements.filter(r => r.kind === kind).forEach(r => {
         let field = r.criteriaField || 'Otro';
         if (field === 'Otro / genérico') field = 'Región';
         let valores = r.criteriaValue ? r.criteriaValue.split(',').map(s => s.trim()).filter(s => s) : ['(sin valor)'];
@@ -1005,12 +1002,30 @@ function generarResumen(selected) {
           mapa[key].cantidad = Math.max(mapa[key].cantidad, r.amount);
           if (!mapa[key].objetivos.includes(o.title)) mapa[key].objetivos.push(o.title);
         });
-      }
+      });
     });
+    const arr = Object.values(mapa);
+    arr.sort((a,b) => a.field.localeCompare(b.field) || a.valor.localeCompare(b.valor));
+    resumen[kind] = arr;
   });
-  const arr = Object.values(mapa);
-  arr.sort((a,b) => a.field.localeCompare(b.field) || a.valor.localeCompare(b.valor));
-  return arr;
+  return resumen;
+}
+
+function renderResumenItems(items){
+  if(items.length === 0) return '';
+  const grupos = {};
+  items.forEach(item => {
+    if (!grupos[item.field]) grupos[item.field] = [];
+    grupos[item.field].push(item);
+  });
+  let html = '';
+  Object.keys(grupos).forEach(field => {
+    const items = grupos[field];
+    html += `<span class="resumen-item"><strong>${escapeHtml(field)}:</strong> `;
+    html += items.map(it => `${escapeHtml(it.valor)} (${it.cantidad})`).join(', ');
+    html += `</span><br>`;
+  });
+  return html;
 }
 
 function renderPlanner(){
@@ -1034,22 +1049,23 @@ function renderPlanner(){
     resumenDiv.style.display = 'none';
   } else {
     const resumen = generarResumen(selected);
-    if(resumen.length === 0){
+    const tieneOnce = resumen.once.length > 0;
+    const tieneMinuto = resumen.minuto.length > 0;
+    if(!tieneOnce && !tieneMinuto){
       resumenDiv.style.display = 'none';
     } else {
       resumenDiv.style.display = 'flex';
-      const grupos = {};
-      resumen.forEach(item => {
-        if (!grupos[item.field]) grupos[item.field] = [];
-        grupos[item.field].push(item);
-      });
+      resumenDiv.style.flexDirection = 'column';
+      resumenDiv.style.gap = '6px';
       let html = '';
-      Object.keys(grupos).forEach(field => {
-        const items = grupos[field];
-        html += `<span class="resumen-item"><strong>${escapeHtml(field)}:</strong> `;
-        html += items.map(it => `${escapeHtml(it.valor)} (${it.cantidad})`).join(', ');
-        html += `</span>`;
-      });
+      if(tieneOnce){
+        html += `<div style="font-weight:700; font-size:12px; color:var(--gold);">📋 Once inicial:</div>`;
+        html += renderResumenItems(resumen.once);
+      }
+      if(tieneMinuto){
+        html += `<div style="font-weight:700; font-size:12px; color:var(--gold); margin-top:6px;">🔄 Convocatoria (mín. 1 min):</div>`;
+        html += renderResumenItems(resumen.minuto);
+      }
       resumenDiv.innerHTML = html;
     }
   }
@@ -1431,7 +1447,6 @@ async function cargarExcelPorDefecto(){
     if(nuevos.length > 0){
       objectives = nuevos;
       await storageSet(KEY_OBJ, objectives);
-      // Rellenar el selector de modos
       llenarSelectModos();
       renderAll();
       console.log('Excel cargado correctamente.');
@@ -1446,7 +1461,6 @@ async function cargarExcelPorDefecto(){
 
 function llenarSelectModos(){
   const select = document.getElementById('filterModo');
-  // Obtener todos los modos únicos de todos los objetivos (incluyendo "Cualquier modo FUT")
   const modosSet = new Set();
   objectives.forEach(o => {
     if(o.modes.length === 0 || o.modes.includes('Cualquier modo FUT')){
@@ -1455,7 +1469,6 @@ function llenarSelectModos(){
       o.modes.forEach(m => modosSet.add(m));
     }
   });
-  // Ordenar alfabéticamente
   const modos = ['todos', ...Array.from(modosSet).sort()];
   select.innerHTML = modos.map(m => `<option value="${m}">${m === 'todos' ? 'Modo: Todos' : m}</option>`).join('');
   select.value = 'todos';
