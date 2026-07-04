@@ -222,6 +222,41 @@
   }
   .plan-list label:last-child { border-bottom: none; }
   .plan-list input[type="checkbox"] { margin: 0; }
+
+  /* Resumen en planificador */
+  .resumen-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+  }
+  .resumen-item {
+    font-size: 13px;
+  }
+  .resumen-item strong {
+    color: var(--gold);
+  }
+  .resumen-item .cant {
+    background: var(--surface-3);
+    padding: 1px 8px;
+    border-radius: 999px;
+    margin-left: 4px;
+    font-weight: 700;
+  }
+  .plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .plan-header .btn {
+    font-size: 12px;
+    padding: 4px 12px;
+  }
 </style>
 </head>
 <body>
@@ -240,14 +275,7 @@
     </div>
   </header>
 
-  <!-- Estado de carga del Excel (solo informativo) -->
-  <div id="cargaExcel" class="card" style="margin-bottom:20px; padding:10px 16px;">
-    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-      <span>📁 <strong>Datos del Excel:</strong></span>
-      <span id="estadoExcel" style="color:var(--muted);">Cargando...</span>
-      <button class="btn secondary small" id="btnRecargarExcel">🔄 Recargar</button>
-    </div>
-  </div>
+  <!-- Ya no mostramos nada sobre carga de Excel -->
 
   <nav class="tabs">
     <button data-tab="objetivos" class="active">Objetivos</button>
@@ -282,10 +310,16 @@
   <section class="tab" id="tab-planificador">
     <div class="card">
       <div class="agg-title">Selecciona los objetivos que vas a intentar a la vez</div>
+      <!-- Resumen de requisitos combinados -->
+      <div id="resumenRequisitos" class="resumen-grid" style="display:none;"></div>
+      <div class="plan-header">
+        <span style="font-size:13px; color:var(--muted);">Marca los que quieras incluir en tu sesión</span>
+        <button class="btn secondary small" id="btnSubirTope">⬆ Subir al tope</button>
+      </div>
       <div class="plan-list" id="plannerList"></div>
     </div>
     <div class="card">
-      <div class="agg-title">Resumen de requisitos combinados</div>
+      <div class="agg-title">Detalle de requisitos</div>
       <div id="plannerAgg"></div>
     </div>
   </section>
@@ -313,7 +347,7 @@
   </section>
 </div>
 
-<!-- MODAL (mantenido para editar/duplicar, pero sin botón "Nuevo") -->
+<!-- MODAL (editar/duplicar) -->
 <div class="modal-overlay hidden" id="modalOverlay">
   <div class="modal">
     <h2 id="modalTitle">Editar objetivo</h2>
@@ -607,7 +641,6 @@ function renderObjectives(){
     return true;
   });
 
-  // Ordenar
   if(orden === 'caducidad'){
     filtered.sort((a,b) => {
       const da = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
@@ -679,7 +712,6 @@ function renderObjectives(){
   });
   cont.innerHTML = html;
 
-  // Eventos para los botones "Añadir/Quitar"
   cont.querySelectorAll('.btn-plan-add').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
       const id = btn.dataset.id;
@@ -928,33 +960,159 @@ document.getElementById('btnGuardarObjetivo').addEventListener('click', ()=>{
 });
 
 /* ===================== PLANIFICADOR MEJORADO ===================== */
+// Función para generar el resumen de requisitos (agrupado por campo y valor)
+function generarResumen(selected){
+  const mapa = {};
+  selected.forEach(o=>{
+    o.requirements.forEach(r=>{
+      if (r.kind === 'once' || r.kind === 'minuto') {
+        const field = r.criteriaField || 'Otro';
+        const value = r.criteriaValue || '(sin valor)';
+        const key = field + '|' + value;
+        if (!mapa[key]) {
+          mapa[key] = { field, value, cantidad: 0, objetivos: [] };
+        }
+        mapa[key].cantidad = Math.max(mapa[key].cantidad, r.amount);
+        if (!mapa[key].objetivos.includes(o.title)) mapa[key].objetivos.push(o.title);
+      }
+    });
+  });
+  // Convertir a array y ordenar por campo
+  const arr = Object.values(mapa);
+  arr.sort((a,b) => a.field.localeCompare(b.field));
+  return arr;
+}
+
 function renderPlanner(){
   const list = document.getElementById('plannerList');
   const eligibles = objectives.filter(o=> getStatus(o)==='activo');
   if(eligibles.length===0){
     list.innerHTML = '<div class="empty">No tienes objetivos activos. Asegúrate de que el Excel se ha cargado correctamente.</div>';
-  } else {
-    list.innerHTML = eligibles.map(o=>{
-      const checked = liveSession.selected.includes(o.id);
-      return `<label>
-        <input type="checkbox" class="plan-check" data-id="${o.id}" ${checked?'checked':''}>
-        <span><strong>${escapeHtml(o.title)}</strong> ${o.groupName?`<span style="color:var(--muted)"> — ${escapeHtml(o.groupName)}</span>`:''}
-        <br><span style="color:var(--muted); font-size:11.5px;">Caduca: ${o.expiresAt? new Date(o.expiresAt).toLocaleString():'sin fecha'} · Modos: ${o.modes.length?escapeHtml(o.modes.join(', ')):'cualquiera'}</span></span>
-      </label>`;
-    }).join('');
-    list.querySelectorAll('.plan-check').forEach(cb=>{
-      cb.addEventListener('change', ()=>{
-        const id = cb.dataset.id;
-        if(cb.checked){ if(!liveSession.selected.includes(id)) liveSession.selected.push(id); }
-        else { liveSession.selected = liveSession.selected.filter(x=>x!==id); delete liveSession.counts[id]; }
-        storageSet(KEY_LIVE, liveSession);
-        renderPlannerAgg();
-        renderLive();
-      });
-    });
+    document.getElementById('resumenRequisitos').style.display = 'none';
+    return;
   }
+
+  // Mostrar resumen
+  const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
+  const resumenDiv = document.getElementById('resumenRequisitos');
+  if(selected.length === 0){
+    resumenDiv.style.display = 'none';
+  } else {
+    const resumen = generarResumen(selected);
+    if(resumen.length === 0){
+      resumenDiv.style.display = 'none';
+    } else {
+      resumenDiv.style.display = 'flex';
+      resumenDiv.innerHTML = resumen.map(item =>
+        `<span class="resumen-item"><strong>${escapeHtml(item.field)}</strong> ${escapeHtml(item.value)} <span class="cant">${item.cantidad}</span></span>`
+      ).join(' ');
+    }
+  }
+
+  // Lista de selección
+  list.innerHTML = eligibles.map(o=>{
+    const checked = liveSession.selected.includes(o.id);
+    return `<label>
+      <input type="checkbox" class="plan-check" data-id="${o.id}" ${checked?'checked':''}>
+      <span><strong>${escapeHtml(o.title)}</strong> ${o.groupName?`<span style="color:var(--muted)"> — ${escapeHtml(o.groupName)}</span>`:''}
+      <br><span style="color:var(--muted); font-size:11.5px;">Caduca: ${o.expiresAt? new Date(o.expiresAt).toLocaleString():'sin fecha'} · Modos: ${o.modes.length?escapeHtml(o.modes.join(', ')):'cualquiera'}</span></span>
+    </label>`;
+  }).join('');
+  list.querySelectorAll('.plan-check').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const id = cb.dataset.id;
+      if(cb.checked){ if(!liveSession.selected.includes(id)) liveSession.selected.push(id); }
+      else { liveSession.selected = liveSession.selected.filter(x=>x!==id); delete liveSession.counts[id]; }
+      storageSet(KEY_LIVE, liveSession);
+      renderPlanner();
+      renderLive();
+    });
+  });
   renderPlannerAgg();
 }
+
+// Botón "Subir al tope": reordena los seleccionados al principio de la lista de selección
+document.getElementById('btnSubirTope').addEventListener('click', ()=>{
+  if(liveSession.selected.length === 0) return;
+  // Obtener todos los IDs de objetivos activos
+  const activos = objectives.filter(o=> getStatus(o)==='activo').map(o=>o.id);
+  // Mover los seleccionados al principio, manteniendo el orden de selección
+  const seleccionados = liveSession.selected.filter(id => activos.includes(id));
+  const noSeleccionados = activos.filter(id => !seleccionados.includes(id));
+  // Reordenar liveSession.selected (no es necesario, solo para mostrar, pero lo hacemos para que el orden visual cambie)
+  // Realmente el orden en la lista se basa en el orden de 'eligibles' que son todos los activos,
+  // pero podemos reordenar el array liveSession.selected para que los primeros sean los que se muestren primero?
+  // La lista de selección muestra todos los activos, no solo los seleccionados. Para "subir al tope" los seleccionados
+  // deberían aparecer al principio de la lista. Podemos reordenar 'objectives' temporalmente? Mejor reordenar la lista de renderizado.
+  // Podemos mantener un orden personalizado: guardamos el orden en una variable.
+  // Una forma sencilla: forzar que los seleccionados se muestren primero en la lista de elegibles.
+  // Vamos a reordenar el array 'eligibles' en renderPlanner según este criterio.
+  // Para ello, añadimos una variable global 'ordenPrioridad' que usaremos.
+  window.ordenPrioridad = [...seleccionados, ...noSeleccionados];
+  // Forzamos el renderizado
+  renderPlanner();
+  showToast('Seleccionados movidos al tope de la lista');
+});
+
+// Modificamos la función renderPlanner para que use el ordenPrioridad si existe
+const originalRenderPlanner = renderPlanner;
+renderPlanner = function(){
+  const list = document.getElementById('plannerList');
+  let eligibles = objectives.filter(o=> getStatus(o)==='activo');
+  if(eligibles.length===0){
+    list.innerHTML = '<div class="empty">No tienes objetivos activos. Asegúrate de que el Excel se ha cargado correctamente.</div>';
+    document.getElementById('resumenRequisitos').style.display = 'none';
+    return;
+  }
+
+  // Aplicar orden prioritario si existe
+  if(window.ordenPrioridad && window.ordenPrioridad.length === eligibles.length){
+    const orderMap = {};
+    window.ordenPrioridad.forEach((id, idx) => orderMap[id] = idx);
+    eligibles.sort((a,b) => (orderMap[a.id] || Infinity) - (orderMap[b.id] || Infinity));
+  }
+
+  // Mostrar resumen (igual que antes)
+  const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
+  const resumenDiv = document.getElementById('resumenRequisitos');
+  if(selected.length === 0){
+    resumenDiv.style.display = 'none';
+  } else {
+    const resumen = generarResumen(selected);
+    if(resumen.length === 0){
+      resumenDiv.style.display = 'none';
+    } else {
+      resumenDiv.style.display = 'flex';
+      resumenDiv.innerHTML = resumen.map(item =>
+        `<span class="resumen-item"><strong>${escapeHtml(item.field)}</strong> ${escapeHtml(item.value)} <span class="cant">${item.cantidad}</span></span>`
+      ).join(' ');
+    }
+  }
+
+  // Lista de selección
+  list.innerHTML = eligibles.map(o=>{
+    const checked = liveSession.selected.includes(o.id);
+    return `<label>
+      <input type="checkbox" class="plan-check" data-id="${o.id}" ${checked?'checked':''}>
+      <span><strong>${escapeHtml(o.title)}</strong> ${o.groupName?`<span style="color:var(--muted)"> — ${escapeHtml(o.groupName)}</span>`:''}
+      <br><span style="color:var(--muted); font-size:11.5px;">Caduca: ${o.expiresAt? new Date(o.expiresAt).toLocaleString():'sin fecha'} · Modos: ${o.modes.length?escapeHtml(o.modes.join(', ')):'cualquiera'}</span></span>
+    </label>`;
+  }).join('');
+  list.querySelectorAll('.plan-check').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const id = cb.dataset.id;
+      if(cb.checked){ if(!liveSession.selected.includes(id)) liveSession.selected.push(id); }
+      else { liveSession.selected = liveSession.selected.filter(x=>x!==id); delete liveSession.counts[id]; }
+      storageSet(KEY_LIVE, liveSession);
+      renderPlanner();
+      renderLive();
+    });
+  });
+  renderPlannerAgg();
+};
+
+// Sobrescribimos la función original para que use la nueva
+// Pero como ya está definida arriba, simplemente la reemplazamos.
 
 const MAX_ONCE_INICIAL = 11;
 const MAX_EN_PARTIDO = 16;
@@ -1035,7 +1193,6 @@ function renderPlannerAgg(){
     });
   });
 
-  // Modos comunes (información extra)
   const modeSets = selected.map(o=> o.modes.length? new Set(o.modes) : null);
   let commonModes = null;
   modeSets.forEach(s=>{
@@ -1070,7 +1227,7 @@ function renderPlannerAgg(){
   html += onceHtml;
   html += `</div>`;
 
-  // Panel Convocatoria (jugadores que deben jugar ≥1 min)
+  // Panel Convocatoria
   html += `<div class="planner-panel">
     <h3>🔄 Convocatoria (mín. 1 min)</h3>`;
   const minHtml = renderCriteriaSection(minByField, MAX_EN_PARTIDO, 'jugadores');
@@ -1079,7 +1236,6 @@ function renderPlannerAgg(){
 
   html += `</div>`;
 
-  // Añadir información de modos compatibles
   html += `<div style="margin-top:12px; background:var(--surface-2); padding:8px 12px; border-radius:6px; border:1px solid var(--line);">
     <span style="font-weight:700;">🎮 Modos compatibles:</span>
     <span>${commonModes && commonModes.size ? escapeHtml([...commonModes].join(', ')) : (commonModes===null ? 'Cualquier modo (sin restricción)' : 'No hay un modo común a todos — revisa objetivos por separado')}</span>
@@ -1088,7 +1244,7 @@ function renderPlannerAgg(){
   cont.innerHTML = html;
 }
 
-/* ===================== PARTIDO EN VIVO (igual que antes) ===================== */
+/* ===================== PARTIDO EN VIVO ===================== */
 function renderLive(){
   const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
 
@@ -1294,7 +1450,7 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
   reader.readAsText(file);
 });
 
-/* ===================== CARGA DE EXCEL (automática) ===================== */
+/* ===================== CARGA DE EXCEL (automática, sin mensaje) ===================== */
 async function cargarExcelPorDefecto(){
   try {
     const response = await fetch('./Objetivos_FUTBIN_COMPLETO_procesado.xlsx');
@@ -1308,35 +1464,26 @@ async function cargarExcelPorDefecto(){
       objectives = nuevos;
       await storageSet(KEY_OBJ, objectives);
       renderAll();
-      document.getElementById('estadoExcel').textContent = '✅ Cargado desde Excel (servidor)';
-      showToast('✅ Excel cargado correctamente desde el servidor.');
+      console.log('Excel cargado correctamente.');
     } else {
-      document.getElementById('estadoExcel').textContent = '⚠️ El Excel no contenía objetivos válidos.';
+      console.warn('El Excel no contenía objetivos válidos.');
     }
   } catch(e) {
     console.warn('No se pudo cargar Excel por defecto:', e);
-    document.getElementById('estadoExcel').textContent = '❌ No se encontró Excel en el servidor. Sube uno manualmente o revisa la ruta.';
     renderAll();
   }
 }
 
-document.getElementById('btnRecargarExcel').addEventListener('click', ()=>{
-  cargarExcelPorDefecto();
-});
-
 /* ===================== EVENTOS GENERALES ===================== */
 document.addEventListener('DOMContentLoaded', async ()=>{
-  // Cargar datos guardados
   objectives = await storageGet(KEY_OBJ, []);
   liveSession = await storageGet(KEY_LIVE, { selected: [], counts: {}, checks: {} });
   history = await storageGet(KEY_HIST, []);
 
-  // Si no hay objetivos guardados, cargar Excel por defecto
   if(objectives.length === 0){
     cargarExcelPorDefecto();
   } else {
     renderAll();
-    document.getElementById('estadoExcel').textContent = 'Cargado desde almacenamiento local';
   }
 });
 
