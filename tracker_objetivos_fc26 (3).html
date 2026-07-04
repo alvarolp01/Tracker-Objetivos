@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Tracker de Objetivos — FC26 Ultimate Team</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0B1512;
+    --surface: #12211B;
+    --surface-2: #17281F;
+    --surface-3: #1D3226;
+    --line: #24402F;
+    --turf: #2F7A54;
+    --turf-bright: #43A873;
+    --gold: #E3B94E;
+    --gold-dim: #6B5A2E;
+    --red: #D9705C;
+    --text: #EAF3EC;
+    --muted: #8FA69A;
+    --mono: 'Courier New', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:24px 20px 60px;}
+  header.top{
+    display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom:2px solid var(--line); padding-bottom:14px; margin-bottom:18px;
+    flex-wrap:wrap; gap:8px;
+  }
+  header.top h1{
+    font-size:22px; letter-spacing:0.06em; text-transform:uppercase;
+    font-weight:800; margin:0;
+  }
+  header.top h1 span{color:var(--gold);}
+  header.top .sub{color:var(--muted); font-size:12.5px;}
+  nav.tabs{
+    display:flex; gap:6px; margin-bottom:22px; border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  nav.tabs button{
+    background:none; border:none; color:var(--muted); font-size:14px;
+    font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
+    padding:10px 16px; cursor:pointer; border-bottom:3px solid transparent;
+  }
+  nav.tabs button.active{color:var(--text); border-bottom-color:var(--gold);}
+  nav.tabs button:hover{color:var(--text);}
+  section.tab{display:none;}
+  section.tab.active{display:block;}
+
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:16px 18px; margin-bottom:14px;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .field{display:flex; flex-direction:column; gap:5px; flex:1; min-width:150px;}
+  .field label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
+  input, select, textarea{
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:8px 10px; border-radius:6px; font-size:14px; font-family:inherit;
+  }
+  input:focus, select:focus, textarea:focus{outline:2px solid var(--turf-bright); outline-offset:1px;}
+  textarea{resize:vertical; min-height:40px;}
+  button.btn{
+    background:var(--turf); color:#fff; border:none; padding:9px 16px;
+    border-radius:6px; font-weight:700; font-size:13.5px; cursor:pointer;
+    letter-spacing:0.02em;
+  }
+  button.btn:hover{background:var(--turf-bright);}
+  button.btn.secondary{background:var(--surface-3); color:var(--text);}
+  button.btn.secondary:hover{background:#254536;}
+  button.btn.danger{background:transparent; color:var(--red); border:1px solid var(--red);}
+  button.btn.danger:hover{background:rgba(217,112,92,0.12);}
+  button.btn.small{padding:5px 10px; font-size:12px;}
+  button.btn:disabled{opacity:0.4; cursor:not-allowed;}
+  button.icon-btn{
+    background:var(--surface-3); border:1px solid var(--line); color:var(--text);
+    width:28px; height:28px; border-radius:6px; cursor:pointer; font-weight:800; font-size:16px;
+    display:inline-flex; align-items:center; justify-content:center; line-height:1;
+  }
+  hr.sep{border:none; border-top:1px solid var(--line); margin:14px 0;}
+
+  .filters{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;}
+  .filters select, .filters input{font-size:13px;}
+  .group-block{margin-bottom:18px;}
+  .group-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 12px; background:var(--surface-3); border-radius:8px 8px 0 0;
+    font-size:13px; font-weight:700; color:var(--gold); letter-spacing:0.02em;
+  }
+  .group-head .reward{color:var(--muted); font-weight:500; font-size:12px;}
+  .obj-card{
+    border:1px solid var(--line); border-top:none; padding:12px 14px;
+    background:var(--surface); display:flex; flex-direction:column; gap:8px;
+  }
+  .group-block .obj-card:first-of-type{border-top:1px solid var(--line);}
+  .obj-top{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;}
+  .obj-title{font-weight:700; font-size:14.5px;}
+  .obj-meta{color:var(--muted); font-size:12px; margin-top:2px;}
+  .badge{
+    font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:700;
+    text-transform:uppercase; letter-spacing:0.03em; white-space:nowrap;
+  }
+  .badge.activo{background:rgba(67,168,115,0.18); color:var(--turf-bright);}
+  .badge.completado{background:rgba(227,185,78,0.18); color:var(--gold);}
+  .badge.caducado{background:rgba(217,112,92,0.18); color:var(--red);}
+  .req-line{
+    display:flex; justify-content:space-between; gap:10px; font-size:12.5px;
+    color:var(--text); background:var(--surface-2); padding:6px 10px; border-radius:6px;
+    align-items:center; flex-wrap:wrap;
+  }
+  .req-line .rtag{color:var(--muted); font-family:var(--mono); font-size:11px; text-transform:uppercase;}
+  .progress-bar{background:var(--surface-3); height:6px; border-radius:99px; overflow:hidden; min-width:80px; flex:1;}
+  .progress-bar > div{height:100%; background:var(--turf-bright);}
+  .progress-bar.done > div{background:var(--gold);}
+  .obj-actions{display:flex; gap:6px; justify-content:flex-end;}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex;
+    align-items:flex-start; justify-content:center; padding:30px 14px; overflow-y:auto; z-index:50;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:22px; max-width:640px; width:100%;
+  }
+  .modal h2{margin-top:0; font-size:17px; text-transform:uppercase; letter-spacing:0.03em;}
+  .req-row{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:8px;
+    padding:10px; margin-bottom:8px;
+  }
+  .req-row .row{margin-bottom:0;}
+  .modes-check{display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;}
+  .modes-check label{display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--text); font-weight:400; text-transform:none;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+
+  .agg-col{display:flex; flex-direction:column; gap:16px;}
+  .agg-title{font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:var(--gold); margin-bottom:8px; font-weight:700;}
+  .plan-list label{
+    display:flex; align-items:flex-start; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);
+    font-size:13.5px; cursor:pointer;
+  }
+  .plan-list label:last-child{border-bottom:none;}
+  .plan-list input[type=checkbox]{margin-top:3px;}
+
+  .counter-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--surface-2); border-radius:8px; padding:10px 12px; margin-bottom:8px;
+    flex-wrap:wrap;
+  }
+  .counter-row .info{flex:1; min-width:180px;}
+  .counter-row .title{font-weight:700; font-size:13.5px;}
+  .counter-row .sub{color:var(--muted); font-size:11.5px;}
+  .counter-ctrl{display:flex; align-items:center; gap:8px;}
+  .counter-num{
+    font-family:var(--mono); font-size:20px; font-weight:800; min-width:60px; text-align:center;
+    background:var(--surface-3); border-radius:6px; padding:4px 8px;
+  }
+  .check-row{
+    display:flex; align-items:center; gap:10px; background:var(--surface-2);
+    border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13.5px;
+  }
+  .empty{color:var(--muted); font-size:13.5px; padding:20px; text-align:center;}
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--turf-bright); color:#08130E; padding:12px 20px; border-radius:8px;
+    font-weight:700; font-size:13.5px; z-index:100; box-shadow:0 4px 20px rgba(0,0,0,0.4);
+  }
+  .history-item{font-size:12.5px; color:var(--muted); padding:6px 0; border-bottom:1px solid var(--line);}
+  .history-item:last-child{border-bottom:none;}
+  .small-note{color:var(--muted); font-size:11.5px; margin-top:4px;}
+  ::placeholder{color:#5C7368;}
+  .hide { display: none !important; }
+
+  /* PLANIFICADOR MEJORADO */
+  .planner-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 10px;
+  }
+  .planner-panel {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .planner-panel h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gold);
+    margin: 0 0 10px 0;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 6px;
+  }
+  .planner-panel .req-line {
+    background: var(--surface);
+    margin-bottom: 6px;
+  }
+  .planner-panel .empty {
+    padding: 8px 0;
+    font-size: 12px;
+  }
+  @media (max-width: 700px) {
+    .planner-panels { grid-template-columns: 1fr; }
+  }
+
+  .plan-list label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .plan-list label:last-child { border-bottom: none; }
+  .plan-list input[type="checkbox"] { margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Tracker <span>UT</span> Objetivos</h1>
+      <div class="sub">FC26 Ultimate Team — planifica, juega y registra</div>
+      <div class="small-note">Los datos se guardan en tu navegador (localStorage). Haz "Guardar copia" para backup.</div>
+    </div>
+    <div class="row" style="gap:8px;">
+      <input type="file" id="fileImport" accept="application/json" style="display:none;">
+      <button class="btn secondary small" id="btnExport">Guardar copia (.json)</button>
+      <button class="btn secondary small" id="btnImport">Cargar copia</button>
+      <button class="btn danger small" id="btnReset">Borrar datos</button>
+    </div>
+  </header>
+
+  <!-- Estado de carga del Excel (solo informativo) -->
+  <div id="cargaExcel" class="card" style="margin-bottom:20px; padding:10px 16px;">
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span>📁 <strong>Datos del Excel:</strong></span>
+      <span id="estadoExcel" style="color:var(--muted);">Cargando...</span>
+      <button class="btn secondary small" id="btnRecargarExcel">🔄 Recargar</button>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="objetivos" class="active">Objetivos</button>
+    <button data-tab="planificador">Planificador</button>
+    <button data-tab="partido">Partido en vivo</button>
+  </nav>
+
+  <!-- TAB OBJETIVOS -->
+  <section class="tab active" id="tab-objetivos">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div class="filters">
+          <input id="filterBusqueda" placeholder="Buscar por texto o grupo..." style="min-width:200px;">
+          <select id="filterOrden">
+            <option value="default">Ordenar por defecto</option>
+            <option value="caducidad">Por fecha de caducidad</option>
+            <option value="progreso">Por progreso (menos completado)</option>
+          </select>
+          <select id="filterEstado" style="min-width:120px;">
+            <option value="todos">Todos los estados</option>
+            <option value="activo">Activos</option>
+            <option value="completado">Completados</option>
+            <option value="caducado">Caducados</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="listaObjetivos"></div>
+  </section>
+
+  <!-- TAB PLANIFICADOR -->
+  <section class="tab" id="tab-planificador">
+    <div class="card">
+      <div class="agg-title">Selecciona los objetivos que vas a intentar a la vez</div>
+      <div class="plan-list" id="plannerList"></div>
+    </div>
+    <div class="card">
+      <div class="agg-title">Resumen de requisitos combinados</div>
+      <div id="plannerAgg"></div>
+    </div>
+  </section>
+
+  <!-- TAB PARTIDO EN VIVO -->
+  <section class="tab" id="tab-partido">
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <div class="agg-title" style="margin:0;">Antes de empezar — comprueba once y convocatoria</div>
+      </div>
+      <div id="liveChecklist"></div>
+    </div>
+    <div class="card">
+      <div class="agg-title">Acciones a registrar durante el partido</div>
+      <div id="liveCounters"></div>
+      <div class="row" style="justify-content:flex-end; margin-top:10px;">
+        <button class="btn secondary" id="btnLimpiarPartido">Reiniciar contadores</button>
+        <button class="btn" id="btnConfirmarPartido">Confirmar partido y guardar progreso</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="agg-title">Últimos partidos registrados</div>
+      <div id="historialLista"></div>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL (mantenido para editar/duplicar, pero sin botón "Nuevo") -->
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">Editar objetivo</h2>
+    <div class="row">
+      <div class="field" style="flex:2;">
+        <label>Título / acción del objetivo</label>
+        <input id="fTitulo" placeholder="Ej: Marca 15 goles en 1 partido">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Grupo de objetivos</label>
+        <input id="fGrupo" list="groupList" placeholder="Ej: Pon a prueba tu destreza (o elige uno ya existente)">
+        <datalist id="groupList"></datalist>
+      </div>
+      <div class="field">
+        <label>Recompensa del grupo</label>
+        <input id="fRecompensaGrupo" placeholder="Ej: Sobre 83+ x5 (al completar todo el grupo)">
+      </div>
+      <div class="field">
+        <label>Caduca (todo el grupo)</label>
+        <input id="fCaduca" type="datetime-local">
+      </div>
+    </div>
+    <div class="small-note" id="grupoSyncNote" style="display:none; margin:-4px 0 8px;"></div>
+    <div class="row">
+      <div class="field">
+        <label>Recompensa particular</label>
+        <input id="fRecompensa" placeholder="Ej: Sobre de oro raro">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:2;">
+        <label>Modos válidos</label>
+        <div class="modes-check" id="fModos">
+          <label><input type="checkbox" value="Squad Battles"> Squad Battles</label>
+          <label><input type="checkbox" value="Division Rivals"> Division Rivals</label>
+          <label><input type="checkbox" value="Ultimate Champions"> Ultimate Champions</label>
+          <label><input type="checkbox" value="Rush"> Rush</label>
+          <label><input type="checkbox" value="Amistosos"> Amistosos</label>
+          <label><input type="checkbox" value="Eventos en directo"> Eventos en directo</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Dificultad mínima (opcional)</label>
+        <input id="fDificultad" placeholder="Ej: Aficionado">
+      </div>
+    </div>
+
+    <hr class="sep">
+    <div class="agg-title" style="margin-bottom:8px;">Requisitos</div>
+    <div id="requisitosContainer"></div>
+    <button class="btn secondary small" id="btnAddRequisito" type="button">+ Añadir requisito</button>
+
+    <hr class="sep">
+    <div class="field">
+      <label>Notas</label>
+      <textarea id="fNotas" placeholder="Cualquier detalle extra..."></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn secondary" id="btnCancelarModal">Cancelar</button>
+      <button class="btn" id="btnGuardarObjetivo">Guardar objetivo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== STORAGE HELPERS ===================== */
+const KEY_OBJ = 'ut_objectives_v1';
+const KEY_LIVE = 'ut_live_session_v1';
+const KEY_HIST = 'ut_match_history_v1';
+
+async function storageGet(key, fallback){
+  try{
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  }catch(e){ console.error('Error leyendo', key, e); return fallback; }
+}
+async function storageSet(key, value){
+  try{
+    window.localStorage.setItem(key, JSON.stringify(value));
+  }catch(e){ console.error('Error guardando', key, e); alert('No se pudo guardar en este navegador. Prueba a exportar una copia manualmente.'); }
+}
+
+/* ===================== STATE ===================== */
+let objectives = [];
+let liveSession = { selected: [], counts: {}, checks: {} };
+let history = [];
+let editingId = null;
+
+function uid(){ return 'o_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+
+const CRITERIA_FIELDS = ['Nacionalidad','Liga','Club','Posición','Tipo de carta','Valoración mínima','Otro / genérico'];
+const KIND_LABELS = { accion:'Acción en partido', once:'Composición del once inicial', minuto:'Jugar ≥1 minuto' };
+
+/* ===================== PARSE EXCEL ===================== */
+function parseExcelToObjectives(rows){
+  const result = [];
+  const col = {
+    group: 'Group',
+    expiry: 'Expiry',
+    groupReward: 'Group_Reward',
+    objective: 'Objective',
+    objectiveReward: 'Objective_Reward',
+    desc: 'Full_Description',
+    tarea: 'TAREA',
+    tipoReqJugadorAccion: 'TIPO REQUISITO JUGADOR ACCION',
+    reqJugadorAccion: 'REQUISITO JUGADOR ACCION',
+    tipoReqOnce: 'TIPO REQUISITO ONCE',
+    cantidadReqOnce: 'CANTIDAD REQUISITO ONCE',
+    reqOnce: 'REQUISITO ONCE',
+    tipoReqEquipo: 'TIPO REQUISITO EQUIPO',
+    cantidadReqEquipo: 'CANTIDAD REQUISITO EQUIPO',
+    reqEquipo: 'REQUISITO EQUIPO',
+    modo: 'MODO DE JUEGO',
+    total: 'CANTIDAD TOTAL'
+  };
+
+  for (const row of rows) {
+    const group = row[col.group] || '';
+    const objective = row[col.objective] || '';
+    if (!objective) continue;
+
+    const tarea = (row[col.tarea] || '').toString().toLowerCase();
+    if (tarea.includes('completar') && !row[col.total]) continue;
+
+    const groupReward = row[col.groupReward] || '';
+    const objectiveReward = row[col.objectiveReward] || '';
+    const desc = row[col.desc] || '';
+    const modoStr = row[col.modo] || 'Cualquier modo FUT';
+    const total = parseFloat(row[col.total]) || 1;
+
+    let modes = [];
+    let minDifficulty = '';
+    if (modoStr.includes('Squad Battles')) {
+      modes.push('Squad Battles');
+      const diffMatch = modoStr.match(/min\.?\s*(\w+)/i);
+      if (diffMatch) minDifficulty = diffMatch[1];
+    }
+    if (modoStr.includes('Rivals')) modes.push('Division Rivals');
+    if (modoStr.includes('Champions')) modes.push('Ultimate Champions');
+    if (modoStr.includes('Rush')) modes.push('Rush');
+    if (modoStr.includes('Live Events')) modes.push('Eventos en directo');
+    if (modoStr.includes('Amistosos')) modes.push('Amistosos');
+    if (modoStr.includes('Cualquier')) modes = ['Cualquier modo FUT'];
+
+    const requirements = [];
+
+    // Acción
+    const actionText = row[col.tarea] || '';
+    if (actionText) {
+      let actionType = actionText.trim();
+      if (actionType.match(/marcar/i)) actionType = 'Goles';
+      else if (actionType.match(/asistir/i)) actionType = 'Asistencias';
+      else if (actionType.match(/ganar/i)) actionType = 'Victorias';
+      else if (actionType.match(/jugar/i)) actionType = 'Partidos jugados';
+      else if (actionType.match(/encajar/i)) actionType = 'Goles encajados';
+      else actionType = actionText;
+
+      const req = {
+        kind: 'accion',
+        actionType: actionType,
+        criteriaField: '',
+        criteriaValue: '',
+        amount: Math.max(1, Math.round(total)),
+        perMatch: true,
+        progress: 0
+      };
+
+      const tipoJug = row[col.tipoReqJugadorAccion] || '';
+      const valJug = row[col.reqJugadorAccion] || '';
+      if (tipoJug && valJug) {
+        if (tipoJug === 'POSICION') req.criteriaField = 'Posición';
+        else if (tipoJug === 'ESTADISTICA') req.criteriaField = 'Valoración mínima';
+        else if (tipoJug === 'PAIS') req.criteriaField = 'Nacionalidad';
+        else if (tipoJug === 'REGION') req.criteriaField = 'Otro / genérico';
+        else req.criteriaField = 'Otro / genérico';
+        req.criteriaValue = valJug;
+      }
+
+      const descLower = desc.toLowerCase();
+      if (descLower.includes('en 3 separate') || descLower.includes('en 5 separate') || descLower.includes('en 10 separate') || descLower.includes('en 15 separate') || descLower.includes('en 20 separate') || descLower.includes('en 25 separate') || descLower.includes('en 30 separate') || descLower.includes('en 50 separate')) {
+        req.perMatch = false;
+        req.amount = Math.max(1, Math.round(total));
+      } else if (descLower.includes('en 1 match') || descLower.includes('en una sola') || descLower.includes('en un mismo')) {
+        req.perMatch = true;
+      } else {
+        if (total > 1 && descLower.includes('separate')) {
+          req.perMatch = false;
+          req.amount = Math.max(1, Math.round(total));
+        }
+      }
+
+      requirements.push(req);
+    }
+
+    // Once
+    const tipoOnce = row[col.tipoReqOnce] || '';
+    const cantOnce = parseFloat(row[col.cantidadReqOnce]) || 0;
+    const reqOnce = row[col.reqOnce] || '';
+    if (tipoOnce && cantOnce > 0 && reqOnce) {
+      let field = '';
+      if (tipoOnce === 'PAIS') field = 'Nacionalidad';
+      else if (tipoOnce === 'REGION') field = 'Otro / genérico';
+      else if (tipoOnce === 'LIGA') field = 'Liga';
+      else if (tipoOnce === 'CARTA') field = 'Tipo de carta';
+      else field = 'Otro / genérico';
+
+      requirements.push({
+        kind: 'once',
+        actionType: '',
+        criteriaField: field,
+        criteriaValue: reqOnce,
+        amount: Math.round(cantOnce),
+        perMatch: true,
+        progress: 0
+      });
+    }
+
+    // Equipo
+    const tipoEquipo = row[col.tipoReqEquipo] || '';
+    const cantEquipo = parseFloat(row[col.cantidadReqEquipo]) || 0;
+    const reqEquipo = row[col.reqEquipo] || '';
+    if (tipoEquipo && cantEquipo > 0 && reqEquipo) {
+      let field = '';
+      if (tipoEquipo === 'EQUIPACION') field = 'Equipación';
+      else if (tipoEquipo === 'ESCUDO') field = 'Escudo';
+      else field = 'Otro / genérico';
+
+      requirements.push({
+        kind: 'once',
+        actionType: '',
+        criteriaField: field,
+        criteriaValue: reqEquipo,
+        amount: Math.round(cantEquipo),
+        perMatch: true,
+        progress: 0
+      });
+    }
+
+    if (requirements.length === 0) continue;
+
+    const obj = {
+      id: uid(),
+      title: objective,
+      groupName: group || '(Sin grupo)',
+      groupReward: groupReward,
+      reward: objectiveReward,
+      expiresAt: (row[col.expiry] && row[col.expiry] !== 'Never') ? new Date(Date.now() + 7*24*60*60*1000).toISOString() : '',
+      minDifficulty: minDifficulty,
+      modes: modes.length ? modes : ['Cualquier modo FUT'],
+      notes: desc,
+      requirements: requirements,
+      createdAt: Date.now()
+    };
+
+    result.push(obj);
+  }
+
+  return result;
+}
+
+/* ===================== STATUS ===================== */
+function getStatus(obj){
+  const now = new Date();
+  const exp = obj.expiresAt ? new Date(obj.expiresAt) : null;
+  const done = obj.requirements.length>0 && obj.requirements.every(r=>r.progress>=r.amount);
+  if(done) return 'completado';
+  if(exp && exp < now) return 'caducado';
+  return 'activo';
+}
+
+/* ===================== RENDER FUNCTIONS ===================== */
+function renderAll(){
+  renderObjectives();
+  renderPlanner();
+  renderLive();
+}
+
+function renderObjectives(){
+  const cont = document.getElementById('listaObjetivos');
+  const estadoFiltro = document.getElementById('filterEstado').value;
+  const texto = document.getElementById('filterBusqueda').value.toLowerCase();
+  const orden = document.getElementById('filterOrden').value;
+
+  let filtered = objectives.filter(o=>{
+    const st = getStatus(o);
+    if(estadoFiltro!=='todos' && st!==estadoFiltro) return false;
+    if(texto && !(o.title.toLowerCase().includes(texto) || (o.groupName||'').toLowerCase().includes(texto))) return false;
+    return true;
+  });
+
+  // Ordenar
+  if(orden === 'caducidad'){
+    filtered.sort((a,b) => {
+      const da = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
+      const db = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
+      return da - db;
+    });
+  } else if(orden === 'progreso'){
+    filtered.sort((a,b) => {
+      const progA = a.requirements.reduce((s,r) => s + (r.progress/r.amount), 0) / a.requirements.length;
+      const progB = b.requirements.reduce((s,r) => s + (r.progress/r.amount), 0) / b.requirements.length;
+      return progA - progB;
+    });
+  }
+
+  if(filtered.length===0){
+    cont.innerHTML = '<div class="card empty">No hay objetivos que coincidan. Asegúrate de que el Excel se ha cargado correctamente.</div>';
+    return;
+  }
+
+  const groups = {};
+  filtered.forEach(o=>{
+    const g = o.groupName || '(Sin grupo)';
+    if(!groups[g]) groups[g] = [];
+    groups[g].push(o);
+  });
+
+  let html = '';
+  Object.keys(groups).forEach(gname=>{
+    const items = groups[gname];
+    const reward = items.find(o=>o.groupReward)?.groupReward || '';
+    const doneCount = items.filter(o=>getStatus(o)==='completado').length;
+    const fechas = [...new Set(items.map(o=>o.expiresAt||''))];
+    let groupExpTxt = '';
+    if(fechas.length===1){
+      groupExpTxt = fechas[0] ? 'Caduca: '+new Date(fechas[0]).toLocaleString() : 'Sin caducidad';
+    } else {
+      groupExpTxt = '⚠ fechas distintas — edita para igualar';
+    }
+    html += `<div class="group-block">
+      <div class="group-head">
+        <span>${escapeHtml(gname)} — ${doneCount}/${items.length} completados</span>
+        <span class="reward">${[reward?'Recompensa grupo: '+escapeHtml(reward):'', groupExpTxt].filter(Boolean).join(' · ')}</span>
+      </div>`;
+    items.sort((a,b)=> new Date(a.expiresAt||'2999-01-01') - new Date(b.expiresAt||'2999-01-01'));
+    items.forEach(o=>{
+      const st = getStatus(o);
+      const expTxt = o.expiresAt ? new Date(o.expiresAt).toLocaleString() : 'Sin caducidad';
+      const enPlan = liveSession.selected.includes(o.id);
+      html += `<div class="obj-card">
+        <div class="obj-top">
+          <div>
+            <div class="obj-title">${escapeHtml(o.title)}</div>
+            <div class="obj-meta">Modos: ${o.modes.length?escapeHtml(o.modes.join(', ')):'cualquiera'} ${o.minDifficulty? ' · Dif. mín: '+escapeHtml(o.minDifficulty):''} · Caduca: ${expTxt}</div>
+          </div>
+          <span class="badge ${st}">${st}</span>
+        </div>
+        ${o.requirements.map(r=>reqLineHtml(r)).join('')}
+        ${o.reward? `<div class="obj-meta">Recompensa: ${escapeHtml(o.reward)}</div>`:''}
+        ${o.notes? `<div class="obj-meta">Notas: ${escapeHtml(o.notes)}</div>`:''}
+        <div class="obj-actions">
+          <button class="btn secondary small btn-plan-add" data-id="${o.id}" data-enplan="${enPlan}">${enPlan ? 'Quitar' : 'Añadir'}</button>
+          <button class="btn secondary small" onclick="openDuplicate('${o.id}')">Duplicar</button>
+          <button class="btn secondary small" onclick="openEdit('${o.id}')">Editar</button>
+          <button class="btn danger small" onclick="deleteObjective('${o.id}')">Eliminar</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  cont.innerHTML = html;
+
+  // Eventos para los botones "Añadir/Quitar"
+  cont.querySelectorAll('.btn-plan-add').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const id = btn.dataset.id;
+      const enPlan = btn.dataset.enplan === 'true';
+      if(enPlan){
+        liveSession.selected = liveSession.selected.filter(x=>x!==id);
+        delete liveSession.counts[id];
+      } else {
+        if(!liveSession.selected.includes(id)) liveSession.selected.push(id);
+      }
+      storageSet(KEY_LIVE, liveSession);
+      renderAll();
+    });
+  });
+}
+
+function reqLineHtml(r){
+  const pct = Math.min(100, Math.round((r.progress/Math.max(1,r.amount))*100));
+  const done = r.progress>=r.amount;
+  const crit = r.criteriaValue ? `${r.criteriaField}: ${escapeHtml(r.criteriaValue)}` : 'sin criterio de jugador';
+  const label = r.kind==='accion' ? `${escapeHtml(r.actionType||'Acción')} (${crit})` : `${KIND_LABELS[r.kind]} (${crit})`;
+  return `<div class="req-line">
+    <span><span class="rtag">${KIND_LABELS[r.kind]}</span> ${label}${r.perMatch?' · en 1 partido':' · acumulable'}</span>
+    <span style="display:flex; align-items:center; gap:8px;">
+      <span class="progress-bar ${done?'done':''}"><div style="width:${pct}%"></div></span>
+      <span style="font-family:var(--mono); font-size:12px;">${r.progress}/${r.amount}</span>
+    </span>
+  </div>`;
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function deleteObjective(id){
+  if(!confirm('¿Eliminar este objetivo? No se puede deshacer.')) return;
+  objectives = objectives.filter(o=>o.id!==id);
+  liveSession.selected = liveSession.selected.filter(x=>x!==id);
+  storageSet(KEY_OBJ, objectives);
+  storageSet(KEY_LIVE, liveSession);
+  renderAll();
+}
+
+/* ===================== MODAL (editar/duplicar) ===================== */
+const modalOverlay = document.getElementById('modalOverlay');
+
+function populateGroupList(){
+  const names = [...new Set(objectives.map(o=>o.groupName).filter(Boolean))];
+  document.getElementById('groupList').innerHTML = names.map(n=>`<option value="${escapeHtml(n)}">`).join('');
+}
+
+function updateGrupoSyncNote(){
+  const gname = document.getElementById('fGrupo').value.trim();
+  const note = document.getElementById('grupoSyncNote');
+  if(!gname){ note.style.display='none'; return; }
+  const hermanos = objectives.filter(o=> o.groupName===gname && o.id!==editingId);
+  if(hermanos.length>0){
+    note.style.display='block';
+    note.textContent = `Este grupo ya tiene ${hermanos.length} objetivo(s). La fecha de caducidad que pongas aquí se aplicará a TODO el grupo.`;
+  } else {
+    note.style.display='none';
+  }
+}
+
+function autofillGroupReward(){
+  const gname = document.getElementById('fGrupo').value.trim();
+  const rewardField = document.getElementById('fRecompensaGrupo');
+  const caducaField = document.getElementById('fCaduca');
+  if(!gname){ updateGrupoSyncNote(); return; }
+
+  const hermanos = objectives.filter(o=> o.groupName===gname && o.id!==editingId);
+  const match = hermanos.find(o=>o.groupReward) || hermanos[0];
+  if(match && !rewardField.value.trim() && match.groupReward) rewardField.value = match.groupReward;
+  if(match && !caducaField.value && match.expiresAt) caducaField.value = match.expiresAt;
+
+  updateGrupoSyncNote();
+}
+
+function openDuplicate(id){
+  const o = objectives.find(x=>x.id===id);
+  if(!o) return;
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Duplicar objetivo';
+  clearForm();
+  populateGroupList();
+  document.getElementById('fTitulo').value = o.title + ' (copia)';
+  document.getElementById('fGrupo').value = o.groupName||'';
+  document.getElementById('fRecompensaGrupo').value = o.groupReward||'';
+  document.getElementById('fRecompensa').value = o.reward||'';
+  document.getElementById('fCaduca').value = o.expiresAt||'';
+  document.getElementById('fDificultad').value = o.minDifficulty||'';
+  document.getElementById('fNotas').value = o.notes||'';
+  document.querySelectorAll('#fModos input').forEach(cb=>{
+    cb.checked = o.modes.includes(cb.value);
+  });
+  document.getElementById('requisitosContainer').innerHTML='';
+  o.requirements.forEach(r=> addRequisitoRow({ ...r, progress: 0 }));
+  updateGrupoSyncNote();
+  modalOverlay.classList.remove('hidden');
+  document.getElementById('fTitulo').focus();
+  document.getElementById('fTitulo').select();
+}
+
+function openEdit(id){
+  const o = objectives.find(x=>x.id===id);
+  if(!o) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Editar objetivo';
+  clearForm();
+  populateGroupList();
+  document.getElementById('fTitulo').value = o.title;
+  document.getElementById('fGrupo').value = o.groupName||'';
+  document.getElementById('fRecompensaGrupo').value = o.groupReward||'';
+  document.getElementById('fRecompensa').value = o.reward||'';
+  document.getElementById('fCaduca').value = o.expiresAt||'';
+  document.getElementById('fDificultad').value = o.minDifficulty||'';
+  document.getElementById('fNotas').value = o.notes||'';
+  document.querySelectorAll('#fModos input').forEach(cb=>{
+    cb.checked = o.modes.includes(cb.value);
+  });
+  document.getElementById('requisitosContainer').innerHTML='';
+  o.requirements.forEach(r=> addRequisitoRow(r));
+  updateGrupoSyncNote();
+  modalOverlay.classList.remove('hidden');
+}
+
+function closeModal(){ modalOverlay.classList.add('hidden'); }
+
+function clearForm(){
+  ['fTitulo','fGrupo','fRecompensaGrupo','fRecompensa','fCaduca','fDificultad','fNotas'].forEach(id=>document.getElementById(id).value='');
+  document.querySelectorAll('#fModos input').forEach(cb=>cb.checked=false);
+  document.getElementById('requisitosContainer').innerHTML='';
+  document.getElementById('grupoSyncNote').style.display='none';
+}
+
+function addRequisitoRow(data){
+  const container = document.getElementById('requisitosContainer');
+  const div = document.createElement('div');
+  div.className = 'req-row';
+  const d = data || { kind:'accion', criteriaField:'Nacionalidad', criteriaValue:'', actionType:'', amount:1, perMatch:true, progress:0 };
+  div.innerHTML = `
+    <div class="row">
+      <div class="field">
+        <label>Tipo de requisito</label>
+        <select class="r-kind">
+          <option value="accion" ${d.kind==='accion'?'selected':''}>Acción en partido</option>
+          <option value="once" ${d.kind==='once'?'selected':''}>Composición del once inicial</option>
+          <option value="minuto" ${d.kind==='minuto'?'selected':''}>Jugar al menos 1 minuto</option>
+        </select>
+      </div>
+      <div class="field r-accion-field" style="${d.kind!=='accion'?'display:none;':''}">
+        <label>Estadística / acción</label>
+        <input class="r-actiontype" list="statList" value="${escapeHtml(d.actionType||'')}" placeholder="Ej: Goles, Asistencias, Victorias...">
+        <datalist id="statList">
+          <option value="Goles"><option value="Asistencias"><option value="Victorias">
+          <option value="Portería a cero"><option value="Regates completados">
+          <option value="Pases clave"><option value="Entradas"><option value="Partidos jugados">
+        </datalist>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Criterio del jugador (opcional)</label>
+        <select class="r-critfield">
+          ${CRITERIA_FIELDS.map(f=>`<option value="${f}" ${d.criteriaField===f?'selected':''}>${f}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Valor del criterio</label>
+        <input class="r-critvalue" value="${escapeHtml(d.criteriaValue||'')}" placeholder="Ej: Italia / Serie A / 83+">
+      </div>
+      <div class="field" style="max-width:120px;">
+        <label>Cantidad objetivo</label>
+        <input class="r-amount" type="number" min="1" value="${d.amount}">
+      </div>
+    </div>
+    <div class="row" style="align-items:center;">
+      <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; text-transform:none; font-weight:400;">
+        <input type="checkbox" class="r-permatch" ${d.perMatch?'checked':''}> Debe cumplirse en un solo partido (si no, se acumula entre partidos)
+      </label>
+      <div style="flex:1;"></div>
+      <button type="button" class="icon-btn r-remove" title="Eliminar requisito">×</button>
+    </div>
+  `;
+  div.dataset.progress = d.progress || 0;
+  container.appendChild(div);
+
+  div.querySelector('.r-kind').addEventListener('change', (e)=>{
+    div.querySelector('.r-accion-field').style.display = e.target.value==='accion' ? '' : 'none';
+  });
+  div.querySelector('.r-remove').addEventListener('click', ()=> div.remove());
+}
+
+document.getElementById('fGrupo').addEventListener('change', autofillGroupReward);
+document.getElementById('btnAddRequisito').addEventListener('click', ()=> addRequisitoRow());
+
+document.getElementById('btnGuardarObjetivo').addEventListener('click', ()=>{
+  const title = document.getElementById('fTitulo').value.trim();
+  if(!title){ alert('Ponle un título al objetivo.'); return; }
+
+  const modos = Array.from(document.querySelectorAll('#fModos input:checked')).map(cb=>cb.value);
+  const reqRows = Array.from(document.querySelectorAll('#requisitosContainer .req-row'));
+  if(reqRows.length===0){ alert('Añade al menos un requisito.'); return; }
+
+  const requirements = reqRows.map(row=>{
+    const kind = row.querySelector('.r-kind').value;
+    const amount = Math.max(1, parseInt(row.querySelector('.r-amount').value)||1);
+    return {
+      kind,
+      actionType: kind==='accion' ? row.querySelector('.r-actiontype').value.trim() : '',
+      criteriaField: row.querySelector('.r-critfield').value,
+      criteriaValue: row.querySelector('.r-critvalue').value.trim(),
+      amount,
+      perMatch: row.querySelector('.r-permatch').checked,
+      progress: Math.min(parseFloat(row.dataset.progress)||0, amount)
+    };
+  });
+
+  const obj = {
+    id: editingId || uid(),
+    title,
+    groupName: document.getElementById('fGrupo').value.trim(),
+    groupReward: document.getElementById('fRecompensaGrupo').value.trim(),
+    reward: document.getElementById('fRecompensa').value.trim(),
+    expiresAt: document.getElementById('fCaduca').value,
+    minDifficulty: document.getElementById('fDificultad').value.trim(),
+    modes: modos,
+    notes: document.getElementById('fNotas').value.trim(),
+    requirements,
+    createdAt: editingId ? (objectives.find(o=>o.id===editingId)?.createdAt || Date.now()) : Date.now()
+  };
+
+  if(editingId){
+    objectives = objectives.map(o=> o.id===editingId ? obj : o);
+  } else {
+    objectives.push(obj);
+  }
+
+  if(obj.groupName){
+    objectives = objectives.map(o=> o.groupName===obj.groupName ? { ...o, expiresAt: obj.expiresAt } : o);
+  }
+
+  storageSet(KEY_OBJ, objectives);
+  closeModal();
+  renderAll();
+});
+
+/* ===================== PLANIFICADOR MEJORADO ===================== */
+function renderPlanner(){
+  const list = document.getElementById('plannerList');
+  const eligibles = objectives.filter(o=> getStatus(o)==='activo');
+  if(eligibles.length===0){
+    list.innerHTML = '<div class="empty">No tienes objetivos activos. Asegúrate de que el Excel se ha cargado correctamente.</div>';
+  } else {
+    list.innerHTML = eligibles.map(o=>{
+      const checked = liveSession.selected.includes(o.id);
+      return `<label>
+        <input type="checkbox" class="plan-check" data-id="${o.id}" ${checked?'checked':''}>
+        <span><strong>${escapeHtml(o.title)}</strong> ${o.groupName?`<span style="color:var(--muted)"> — ${escapeHtml(o.groupName)}</span>`:''}
+        <br><span style="color:var(--muted); font-size:11.5px;">Caduca: ${o.expiresAt? new Date(o.expiresAt).toLocaleString():'sin fecha'} · Modos: ${o.modes.length?escapeHtml(o.modes.join(', ')):'cualquiera'}</span></span>
+      </label>`;
+    }).join('');
+    list.querySelectorAll('.plan-check').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        const id = cb.dataset.id;
+        if(cb.checked){ if(!liveSession.selected.includes(id)) liveSession.selected.push(id); }
+        else { liveSession.selected = liveSession.selected.filter(x=>x!==id); delete liveSession.counts[id]; }
+        storageSet(KEY_LIVE, liveSession);
+        renderPlannerAgg();
+        renderLive();
+      });
+    });
+  }
+  renderPlannerAgg();
+}
+
+const MAX_ONCE_INICIAL = 11;
+const MAX_EN_PARTIDO = 16;
+
+function buildCriteriaGroups(selected, kind){
+  const byField = {};
+  selected.forEach(o=>{
+    o.requirements.filter(r=>r.kind===kind).forEach(r=>{
+      const field = r.criteriaField || 'Otro / genérico';
+      const value = r.criteriaValue || '(sin valor concreto)';
+      if(!byField[field]) byField[field] = {};
+      const key = value;
+      if(!byField[field][key]) byField[field][key] = { value, amount:0, objs:[] };
+      byField[field][key].amount = Math.max(byField[field][key].amount, r.amount);
+      byField[field][key].objs.push(o.title);
+    });
+  });
+  return byField;
+}
+
+function renderCriteriaSection(byField, max, unidadTexto){
+  const fields = Object.keys(byField);
+  if(fields.length===0) return '<div class="empty">No hay requisitos de este tipo en los objetivos seleccionados.</div>';
+
+  let grandTotal = 0;
+  let html = '';
+
+  fields.forEach(field=>{
+    const values = Object.values(byField[field]);
+    const fieldSum = values.reduce((s,v)=> s+v.amount, 0);
+    grandTotal += fieldSum;
+    const exceeded = fieldSum > max;
+    html += `<div style="margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-weight:700; font-size:13px;">${escapeHtml(field)}</span>
+        <span class="badge ${exceeded?'caducado':'activo'}">${fieldSum} / ${max} ${unidadTexto}</span>
+      </div>`;
+
+    values.sort((a,b)=> b.amount-a.amount).forEach(v=>{
+      html += `<div class="req-line">
+        <span><strong>${escapeHtml(v.value)}</strong> — mínimo ${v.amount} jugador(es) distintos</span>
+        <span style="color:var(--muted); font-size:11px;">${v.objs.length} objetivo(s)</span>
+      </div>`;
+    });
+
+    if(exceeded){
+      html += `<div class="req-line" style="border:1px solid var(--red); background:rgba(217,112,92,0.12);">
+        <span style="color:var(--red); font-weight:700;">⚠ Imposible tal cual: pides ${fieldSum} jugadores distintos de "${escapeHtml(field)}", pero solo hay ${max} ${unidadTexto.toLowerCase()}. Revisa si puedes bajar cantidades o si algún objetivo es incompatible con el resto.</span>
+      </div>`;
+    }
+    html += `</div>`;
+  });
+
+  if(fields.length>1 && grandTotal>max){
+    html = `<div class="req-line" style="border:1px solid var(--gold); background:rgba(227,185,78,0.10); margin-bottom:10px;">
+      <span style="color:var(--gold); font-weight:700;">ℹ En el peor de los casos (si ningún jugador cumple dos criterios a la vez) necesitarías hasta ${grandTotal} jugadores distintos entre todos los campos, más que los ${max} ${unidadTexto.toLowerCase()} disponibles. Si un mismo jugador cubre varios criterios, sí podría encajar.</span>
+    </div>` + html;
+  }
+
+  return html;
+}
+
+function renderPlannerAgg(){
+  const cont = document.getElementById('plannerAgg');
+  const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
+  if(selected.length===0){
+    cont.innerHTML = '<div class="empty">Selecciona objetivos arriba para ver qué necesitas en el once, la convocatoria y el partido.</div>';
+    return;
+  }
+
+  const onceByField = buildCriteriaGroups(selected, 'once');
+  const minByField = buildCriteriaGroups(selected, 'minuto');
+
+  const acciones = [];
+  selected.forEach(o=>{
+    o.requirements.filter(r=>r.kind==='accion').forEach(r=>{
+      acciones.push({obj:o.title, r});
+    });
+  });
+
+  // Modos comunes (información extra)
+  const modeSets = selected.map(o=> o.modes.length? new Set(o.modes) : null);
+  let commonModes = null;
+  modeSets.forEach(s=>{
+    if(s===null) return;
+    if(commonModes===null) commonModes = new Set(s);
+    else commonModes = new Set([...commonModes].filter(m=>s.has(m)));
+  });
+
+  let html = `<div class="planner-panels">`;
+
+  // Panel de Acciones
+  html += `<div class="planner-panel">
+    <h3>⚽ Acciones</h3>`;
+  if(acciones.length){
+    acciones.forEach(a=>{
+      const restante = a.r.amount - a.r.progress;
+      const estado = restante <= 0 ? '✅' : `${restante} restante(s)`;
+      html += `<div class="req-line">
+        <span><strong>${escapeHtml(a.r.actionType||'Acción')}</strong> ${a.r.criteriaValue ? `(${escapeHtml(a.r.criteriaValue)})` : ''}</span>
+        <span style="font-size:11px; color:var(--muted);">${estado}</span>
+      </div>`;
+    });
+  } else {
+    html += `<div class="empty">Ningún objetivo requiere acciones.</div>`;
+  }
+  html += `</div>`;
+
+  // Panel Once inicial
+  html += `<div class="planner-panel">
+    <h3>👥 Once inicial</h3>`;
+  const onceHtml = renderCriteriaSection(onceByField, MAX_ONCE_INICIAL, 'plazas');
+  html += onceHtml;
+  html += `</div>`;
+
+  // Panel Convocatoria (jugadores que deben jugar ≥1 min)
+  html += `<div class="planner-panel">
+    <h3>🔄 Convocatoria (mín. 1 min)</h3>`;
+  const minHtml = renderCriteriaSection(minByField, MAX_EN_PARTIDO, 'jugadores');
+  html += minHtml;
+  html += `</div>`;
+
+  html += `</div>`;
+
+  // Añadir información de modos compatibles
+  html += `<div style="margin-top:12px; background:var(--surface-2); padding:8px 12px; border-radius:6px; border:1px solid var(--line);">
+    <span style="font-weight:700;">🎮 Modos compatibles:</span>
+    <span>${commonModes && commonModes.size ? escapeHtml([...commonModes].join(', ')) : (commonModes===null ? 'Cualquier modo (sin restricción)' : 'No hay un modo común a todos — revisa objetivos por separado')}</span>
+  </div>`;
+
+  cont.innerHTML = html;
+}
+
+/* ===================== PARTIDO EN VIVO (igual que antes) ===================== */
+function renderLive(){
+  const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
+
+  const checklistCont = document.getElementById('liveChecklist');
+  const checkReqs = [];
+  selected.forEach(o=> o.requirements.filter(r=>r.kind!=='accion').forEach((r,idx)=> checkReqs.push({o,r,idx})));
+  if(checkReqs.length===0){
+    checklistCont.innerHTML = '<div class="empty">No hay requisitos de once/convocatoria en tus objetivos seleccionados.</div>';
+  } else {
+    checklistCont.innerHTML = checkReqs.map(item=>{
+      const ckKey = item.o.id+'_'+item.idx+'_'+item.r.kind;
+      const checked = !!liveSession.checks[ckKey];
+      return `<div class="check-row">
+        <input type="checkbox" class="live-check" data-key="${ckKey}" ${checked?'checked':''}>
+        <span>${KIND_LABELS[item.r.kind]}: <strong>${escapeHtml(item.r.criteriaField)}: ${escapeHtml(item.r.criteriaValue||'—')}</strong> (mín. ${item.r.amount}) — <span style="color:var(--muted)">${escapeHtml(item.o.title)}</span></span>
+      </div>`;
+    }).join('');
+    checklistCont.querySelectorAll('.live-check').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        liveSession.checks[cb.dataset.key] = cb.checked;
+        storageSet(KEY_LIVE, liveSession);
+      });
+    });
+  }
+
+  const counterCont = document.getElementById('liveCounters');
+  const accionReqs = [];
+  selected.forEach(o=> o.requirements.filter(r=>r.kind==='accion').forEach((r,idx)=> accionReqs.push({o,r,idx})));
+  if(accionReqs.length===0){
+    counterCont.innerHTML = '<div class="empty">No hay acciones que registrar para los objetivos seleccionados.</div>';
+  } else {
+    counterCont.innerHTML = accionReqs.map(item=>{
+      const key = item.o.id+'_'+item.idx;
+      const val = liveSession.counts[key] || 0;
+      return `<div class="counter-row">
+        <div class="info">
+          <div class="title">${escapeHtml(item.r.actionType||'Acción')} <span style="color:var(--muted); font-weight:400;">(${escapeHtml(item.r.criteriaValue||'sin criterio')})</span></div>
+          <div class="sub">${escapeHtml(item.o.title)} · objetivo total: ${item.r.progress}/${item.r.amount}${item.r.perMatch?' · debe lograrse en este partido':''}</div>
+        </div>
+        <div class="counter-ctrl">
+          <button class="icon-btn live-dec" data-key="${key}">−</button>
+          <div class="counter-num" id="cnt_${key}">${val}</div>
+          <button class="icon-btn live-inc" data-key="${key}">+</button>
+        </div>
+      </div>`;
+    }).join('');
+    counterCont.querySelectorAll('.live-inc').forEach(b=> b.addEventListener('click', ()=> changeCounter(b.dataset.key, 1)));
+    counterCont.querySelectorAll('.live-dec').forEach(b=> b.addEventListener('click', ()=> changeCounter(b.dataset.key, -1)));
+  }
+
+  renderHistory();
+}
+
+function changeCounter(key, delta){
+  const cur = liveSession.counts[key] || 0;
+  liveSession.counts[key] = Math.max(0, cur+delta);
+  document.getElementById('cnt_'+key).textContent = liveSession.counts[key];
+  storageSet(KEY_LIVE, liveSession);
+}
+
+document.getElementById('btnLimpiarPartido').addEventListener('click', ()=>{
+  if(!confirm('¿Reiniciar todos los contadores y checks del partido actual?')) return;
+  liveSession.counts = {};
+  liveSession.checks = {};
+  storageSet(KEY_LIVE, liveSession);
+  renderLive();
+});
+
+document.getElementById('btnConfirmarPartido').addEventListener('click', ()=>{
+  const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
+  if(selected.length===0){ alert('No hay objetivos seleccionados en el planificador.'); return; }
+
+  const summary = [];
+  selected.forEach(o=>{
+    o.requirements.forEach((r,idx)=>{
+      if(r.kind==='accion'){
+        const key = o.id+'_'+idx;
+        const got = liveSession.counts[key] || 0;
+        if(got<=0) return;
+        if(r.perMatch){
+          if(got>=r.amount){ r.progress = r.amount; summary.push(`${o.title}: ${r.actionType} completado en este partido`); }
+        } else {
+          const before = r.progress;
+          r.progress = Math.min(r.amount, r.progress+got);
+          if(r.progress>before) summary.push(`${o.title}: ${r.actionType} +${r.progress-before} (${r.progress}/${r.amount})`);
+        }
+      } else {
+        const ckKey = o.id+'_'+idx+'_'+r.kind;
+        if(liveSession.checks[ckKey]){
+          if(r.perMatch){
+            r.progress = r.amount;
+          } else {
+            const before = r.progress;
+            r.progress = Math.min(r.amount, r.progress+1);
+            if(r.progress>before) summary.push(`${o.title}: ${KIND_LABELS[r.kind]} +1 (${r.progress}/${r.amount})`);
+          }
+        }
+      }
+    });
+  });
+
+  if(summary.length===0){
+    if(!confirm('No se ha registrado ningún progreso (contadores en 0 y checks vacíos). ¿Guardar igualmente como partido vacío?')) return;
+  }
+
+  history.unshift({ date: Date.now(), summary });
+  history = history.slice(0, 30);
+
+  storageSet(KEY_OBJ, objectives);
+  storageSet(KEY_HIST, history);
+
+  liveSession.counts = {};
+  liveSession.checks = {};
+  liveSession.selected = liveSession.selected.filter(id=>{
+    const o = objectives.find(x=>x.id===id);
+    return o && getStatus(o)!=='completado';
+  });
+  storageSet(KEY_LIVE, liveSession);
+
+  renderAll();
+  showToast('Partido confirmado. Progreso guardado.');
+});
+
+function renderHistory(){
+  const cont = document.getElementById('historialLista');
+  if(history.length===0){ cont.innerHTML = '<div class="empty">Todavía no has confirmado ningún partido.</div>'; return; }
+  cont.innerHTML = history.slice(0,10).map(h=>{
+    const d = new Date(h.date).toLocaleString();
+    const s = h.summary.length? h.summary.join(' · ') : 'Sin progreso registrado';
+    return `<div class="history-item"><strong>${d}</strong> — ${escapeHtml(s)}</div>`;
+  }).join('');
+}
+
+function showToast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 2600);
+}
+
+/* ===================== RESET & EXPORT/IMPORT ===================== */
+document.getElementById('btnReset').addEventListener('click', async ()=>{
+  if(!confirm('Esto borrará TODOS los objetivos, el planificador y el historial. ¿Continuar?')) return;
+  objectives = []; liveSession = { selected: [], counts: {}, checks: {} }; history = [];
+  await storageSet(KEY_OBJ, objectives);
+  await storageSet(KEY_LIVE, liveSession);
+  await storageSet(KEY_HIST, history);
+  renderAll();
+});
+
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    objectives, liveSession, history
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const fecha = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `ut_objetivos_backup_${fecha}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Copia guardada. Revisa tu carpeta de descargas.');
+});
+
+document.getElementById('btnImport').addEventListener('click', ()=>{
+  document.getElementById('fileImport').click();
+});
+
+document.getElementById('fileImport').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      if(!data || !Array.isArray(data.objectives)){ alert('El archivo no tiene el formato esperado.'); return; }
+      const modo = confirm('Pulsa "Aceptar" para REEMPLAZAR todos tus datos actuales por los del archivo.\nPulsa "Cancelar" para FUSIONAR (añadir los objetivos del archivo a los que ya tienes).');
+      if(modo){
+        objectives = data.objectives || [];
+        liveSession = data.liveSession || { selected: [], counts: {}, checks: {} };
+        history = data.history || [];
+      } else {
+        const existingIds = new Set(objectives.map(o=>o.id));
+        (data.objectives||[]).forEach(o=>{ if(!existingIds.has(o.id)) objectives.push(o); });
+        history = [...(data.history||[]), ...history].slice(0,30);
+      }
+      await storageSet(KEY_OBJ, objectives);
+      await storageSet(KEY_LIVE, liveSession);
+      await storageSet(KEY_HIST, history);
+      renderAll();
+      showToast('Copia cargada correctamente.');
+    }catch(err){
+      alert('No se pudo leer el archivo: ' + err.message);
+    }finally{
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* ===================== CARGA DE EXCEL (automática) ===================== */
+async function cargarExcelPorDefecto(){
+  try {
+    const response = await fetch('./Objetivos_FUTBIN_COMPLETO_procesado.xlsx');
+    if(!response.ok) throw new Error('No se encontró el archivo Excel en el servidor.');
+    const arrayBuffer = await response.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, {type:'array'});
+    const hoja = workbook.Sheets[workbook.SheetNames[0]];
+    const datos = XLSX.utils.sheet_to_json(hoja);
+    const nuevos = parseExcelToObjectives(datos);
+    if(nuevos.length > 0){
+      objectives = nuevos;
+      await storageSet(KEY_OBJ, objectives);
+      renderAll();
+      document.getElementById('estadoExcel').textContent = '✅ Cargado desde Excel (servidor)';
+      showToast('✅ Excel cargado correctamente desde el servidor.');
+    } else {
+      document.getElementById('estadoExcel').textContent = '⚠️ El Excel no contenía objetivos válidos.';
+    }
+  } catch(e) {
+    console.warn('No se pudo cargar Excel por defecto:', e);
+    document.getElementById('estadoExcel').textContent = '❌ No se encontró Excel en el servidor. Sube uno manualmente o revisa la ruta.';
+    renderAll();
+  }
+}
+
+document.getElementById('btnRecargarExcel').addEventListener('click', ()=>{
+  cargarExcelPorDefecto();
+});
+
+/* ===================== EVENTOS GENERALES ===================== */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  // Cargar datos guardados
+  objectives = await storageGet(KEY_OBJ, []);
+  liveSession = await storageGet(KEY_LIVE, { selected: [], counts: {}, checks: {} });
+  history = await storageGet(KEY_HIST, []);
+
+  // Si no hay objetivos guardados, cargar Excel por defecto
+  if(objectives.length === 0){
+    cargarExcelPorDefecto();
+  } else {
+    renderAll();
+    document.getElementById('estadoExcel').textContent = 'Cargado desde almacenamiento local';
+  }
+});
+
+// Tabs
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='planificador') renderPlanner();
+    if(btn.dataset.tab==='partido') renderLive();
+  });
+});
+
+// Filtros
+document.getElementById('filterEstado').addEventListener('change', renderObjectives);
+document.getElementById('filterBusqueda').addEventListener('input', renderObjectives);
+document.getElementById('filterOrden').addEventListener('change', renderObjectives);
+
+// Botón Cancelar modal
+document.getElementById('btnCancelarModal').addEventListener('click', closeModal);
+
+</script>
+</body>
+</html>
