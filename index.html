@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  /* (mismo CSS que antes, no lo repito para no alargar, pero está completo en el archivo final) */
+  /* (Mismo CSS que antes, no lo repito para no alargar, pero está incluido en el código final) */
   :root {
     --bg: #0B1512;
     --surface: #12211B;
@@ -281,11 +281,25 @@
     <div class="card">
       <div class="row" style="justify-content:space-between;">
         <div class="filters">
-          <input id="filterBusqueda" placeholder="Buscar por texto o grupo..." style="min-width:200px;">
-          <select id="filterOrden">
-            <option value="default">Ordenar por defecto</option>
-            <option value="caducidad">Por fecha de caducidad</option>
-            <option value="progreso">Por progreso (menos completado)</option>
+          <input id="filterBusqueda" placeholder="Buscar por texto o grupo..." style="min-width:180px;">
+          <select id="filterModo" style="min-width:140px;">
+            <option value="todos">Modo: Todos</option>
+          </select>
+          <select id="filterTipoReq" style="min-width:140px;">
+            <option value="todos">Tipo req: Todos</option>
+            <option value="Nacionalidad">Nacionalidad</option>
+            <option value="Liga">Liga</option>
+            <option value="Club">Club</option>
+            <option value="Posición">Posición</option>
+            <option value="Tipo de carta">Tipo de carta</option>
+            <option value="Valoración mínima">Valoración</option>
+            <option value="Región">Región</option>
+            <option value="Otro">Otro</option>
+          </select>
+          <select id="filterOrden" style="min-width:140px;">
+            <option value="default">Orden: defecto</option>
+            <option value="caducidad">Por caducidad</option>
+            <option value="progreso">Por progreso</option>
           </select>
           <select id="filterEstado" style="min-width:120px;">
             <option value="todos">Todos los estados</option>
@@ -303,7 +317,6 @@
   <section class="tab" id="tab-planificador">
     <div class="card">
       <div class="agg-title">Selecciona los objetivos que vas a intentar a la vez</div>
-      <!-- Resumen de requisitos combinados -->
       <div id="resumenRequisitos" class="resumen-grid" style="display:none;"></div>
       <div class="plan-header">
         <span style="font-size:13px; color:var(--muted);">Marca los que quieras incluir en tu sesión</span>
@@ -626,11 +639,34 @@ function renderObjectives(){
   const estadoFiltro = document.getElementById('filterEstado').value;
   const texto = document.getElementById('filterBusqueda').value.toLowerCase();
   const orden = document.getElementById('filterOrden').value;
+  const modoFiltro = document.getElementById('filterModo').value;
+  const tipoReqFiltro = document.getElementById('filterTipoReq').value;
 
   let filtered = objectives.filter(o=>{
+    // Estado
     const st = getStatus(o);
     if(estadoFiltro!=='todos' && st!==estadoFiltro) return false;
+
+    // Texto
     if(texto && !(o.title.toLowerCase().includes(texto) || (o.groupName||'').toLowerCase().includes(texto))) return false;
+
+    // Modo de juego
+    if(modoFiltro !== 'todos'){
+      // Si el objetivo tiene "Cualquier modo FUT" o modes vacío, siempre debe aparecer (a menos que filtremos por "todos")
+      const esCualquier = o.modes.length === 0 || o.modes.includes('Cualquier modo FUT');
+      if(!esCualquier && !o.modes.includes(modoFiltro)) return false;
+    }
+
+    // Tipo de requisito
+    if(tipoReqFiltro !== 'todos'){
+      const tieneTipo = o.requirements.some(r => {
+        let field = r.criteriaField || '';
+        if(field === 'Otro / genérico') field = 'Otro';
+        return field === tipoReqFiltro;
+      });
+      if(!tieneTipo) return false;
+    }
+
     return true;
   });
 
@@ -649,7 +685,7 @@ function renderObjectives(){
   }
 
   if(filtered.length===0){
-    cont.innerHTML = '<div class="card empty">No hay objetivos que coincidan. Asegúrate de que el Excel se ha cargado correctamente.</div>';
+    cont.innerHTML = '<div class="card empty">No hay objetivos que coincidan con los filtros.</div>';
     return;
   }
 
@@ -953,15 +989,13 @@ document.getElementById('btnGuardarObjetivo').addEventListener('click', ()=>{
 });
 
 /* ===================== PLANIFICADOR MEJORADO ===================== */
-// Función mejorada para generar el resumen (desglosa valores con comas y renombra "Otro / genérico")
 function generarResumen(selected) {
-  const mapa = {}; // clave: field|valor, valor: {field, valor, cantidad, objetivos}
+  const mapa = {};
   selected.forEach(o => {
     o.requirements.forEach(r => {
       if (r.kind === 'once' || r.kind === 'minuto') {
         let field = r.criteriaField || 'Otro';
         if (field === 'Otro / genérico') field = 'Región';
-        // Dividir valores separados por coma
         let valores = r.criteriaValue ? r.criteriaValue.split(',').map(s => s.trim()).filter(s => s) : ['(sin valor)'];
         valores.forEach(val => {
           const key = field + '|' + val;
@@ -988,14 +1022,12 @@ function renderPlanner(){
     return;
   }
 
-  // Aplicar orden prioritario si existe
   if(window.ordenPrioridad && window.ordenPrioridad.length === eligibles.length){
     const orderMap = {};
     window.ordenPrioridad.forEach((id, idx) => orderMap[id] = idx);
     eligibles.sort((a,b) => (orderMap[a.id] || Infinity) - (orderMap[b.id] || Infinity));
   }
 
-  // Mostrar resumen
   const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
   const resumenDiv = document.getElementById('resumenRequisitos');
   if(selected.length === 0){
@@ -1006,7 +1038,6 @@ function renderPlanner(){
       resumenDiv.style.display = 'none';
     } else {
       resumenDiv.style.display = 'flex';
-      // Agrupar por campo para mostrarlo de forma más clara
       const grupos = {};
       resumen.forEach(item => {
         if (!grupos[item.field]) grupos[item.field] = [];
@@ -1023,7 +1054,6 @@ function renderPlanner(){
     }
   }
 
-  // Lista de selección
   list.innerHTML = eligibles.map(o=>{
     const checked = liveSession.selected.includes(o.id);
     return `<label>
@@ -1045,7 +1075,6 @@ function renderPlanner(){
   renderPlannerAgg();
 }
 
-// Botón "Subir al tope"
 document.getElementById('btnSubirTope').addEventListener('click', ()=>{
   if(liveSession.selected.length === 0) return;
   const activos = objectives.filter(o=> getStatus(o)==='activo').map(o=>o.id);
@@ -1145,7 +1174,6 @@ function renderPlannerAgg(){
 
   let html = `<div class="planner-panels">`;
 
-  // Panel de Acciones
   html += `<div class="planner-panel">
     <h3>⚽ Acciones</h3>`;
   if(acciones.length){
@@ -1162,14 +1190,12 @@ function renderPlannerAgg(){
   }
   html += `</div>`;
 
-  // Panel Once inicial
   html += `<div class="planner-panel">
     <h3>👥 Once inicial</h3>`;
   const onceHtml = renderCriteriaSection(onceByField, MAX_ONCE_INICIAL, 'plazas');
   html += onceHtml;
   html += `</div>`;
 
-  // Panel Convocatoria
   html += `<div class="planner-panel">
     <h3>🔄 Convocatoria (mín. 1 min)</h3>`;
   const minHtml = renderCriteriaSection(minByField, MAX_EN_PARTIDO, 'jugadores');
@@ -1392,7 +1418,7 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
   reader.readAsText(file);
 });
 
-/* ===================== CARGA DE EXCEL (automática, sin mensaje) ===================== */
+/* ===================== CARGA DE EXCEL (automática) ===================== */
 async function cargarExcelPorDefecto(){
   try {
     const response = await fetch('./Objetivos_FUTBIN_COMPLETO_procesado.xlsx');
@@ -1405,6 +1431,8 @@ async function cargarExcelPorDefecto(){
     if(nuevos.length > 0){
       objectives = nuevos;
       await storageSet(KEY_OBJ, objectives);
+      // Rellenar el selector de modos
+      llenarSelectModos();
       renderAll();
       console.log('Excel cargado correctamente.');
     } else {
@@ -1416,6 +1444,23 @@ async function cargarExcelPorDefecto(){
   }
 }
 
+function llenarSelectModos(){
+  const select = document.getElementById('filterModo');
+  // Obtener todos los modos únicos de todos los objetivos (incluyendo "Cualquier modo FUT")
+  const modosSet = new Set();
+  objectives.forEach(o => {
+    if(o.modes.length === 0 || o.modes.includes('Cualquier modo FUT')){
+      modosSet.add('Cualquier modo FUT');
+    } else {
+      o.modes.forEach(m => modosSet.add(m));
+    }
+  });
+  // Ordenar alfabéticamente
+  const modos = ['todos', ...Array.from(modosSet).sort()];
+  select.innerHTML = modos.map(m => `<option value="${m}">${m === 'todos' ? 'Modo: Todos' : m}</option>`).join('');
+  select.value = 'todos';
+}
+
 /* ===================== EVENTOS GENERALES ===================== */
 document.addEventListener('DOMContentLoaded', async ()=>{
   objectives = await storageGet(KEY_OBJ, []);
@@ -1425,6 +1470,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   if(objectives.length === 0){
     cargarExcelPorDefecto();
   } else {
+    llenarSelectModos();
     renderAll();
   }
 });
@@ -1445,6 +1491,8 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
 document.getElementById('filterEstado').addEventListener('change', renderObjectives);
 document.getElementById('filterBusqueda').addEventListener('input', renderObjectives);
 document.getElementById('filterOrden').addEventListener('change', renderObjectives);
+document.getElementById('filterModo').addEventListener('change', renderObjectives);
+document.getElementById('filterTipoReq').addEventListener('change', renderObjectives);
 
 // Botón Cancelar modal
 document.getElementById('btnCancelarModal').addEventListener('click', closeModal);
