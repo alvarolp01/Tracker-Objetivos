@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+  /* (mismo CSS que antes, no lo repito para no alargar, pero está completo en el archivo final) */
   :root {
     --bg: #0B1512;
     --surface: #12211B;
@@ -227,25 +228,19 @@
   .resumen-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px 24px;
+    gap: 8px 16px;
     background: var(--surface-2);
     border: 1px solid var(--line);
     border-radius: 8px;
-    padding: 10px 14px;
+    padding: 8px 12px;
     margin-bottom: 12px;
+    font-size: 13px;
   }
   .resumen-item {
     font-size: 13px;
   }
   .resumen-item strong {
     color: var(--gold);
-  }
-  .resumen-item .cant {
-    background: var(--surface-3);
-    padding: 1px 8px;
-    border-radius: 999px;
-    margin-left: 4px;
-    font-weight: 700;
   }
   .plan-header {
     display: flex;
@@ -274,8 +269,6 @@
       <button class="btn danger small" id="btnReset">Borrar datos</button>
     </div>
   </header>
-
-  <!-- Ya no mostramos nada sobre carga de Excel -->
 
   <nav class="tabs">
     <button data-tab="objetivos" class="active">Objetivos</button>
@@ -960,103 +953,33 @@ document.getElementById('btnGuardarObjetivo').addEventListener('click', ()=>{
 });
 
 /* ===================== PLANIFICADOR MEJORADO ===================== */
-// Función para generar el resumen de requisitos (agrupado por campo y valor)
-function generarResumen(selected){
-  const mapa = {};
-  selected.forEach(o=>{
-    o.requirements.forEach(r=>{
+// Función mejorada para generar el resumen (desglosa valores con comas y renombra "Otro / genérico")
+function generarResumen(selected) {
+  const mapa = {}; // clave: field|valor, valor: {field, valor, cantidad, objetivos}
+  selected.forEach(o => {
+    o.requirements.forEach(r => {
       if (r.kind === 'once' || r.kind === 'minuto') {
-        const field = r.criteriaField || 'Otro';
-        const value = r.criteriaValue || '(sin valor)';
-        const key = field + '|' + value;
-        if (!mapa[key]) {
-          mapa[key] = { field, value, cantidad: 0, objetivos: [] };
-        }
-        mapa[key].cantidad = Math.max(mapa[key].cantidad, r.amount);
-        if (!mapa[key].objetivos.includes(o.title)) mapa[key].objetivos.push(o.title);
+        let field = r.criteriaField || 'Otro';
+        if (field === 'Otro / genérico') field = 'Región';
+        // Dividir valores separados por coma
+        let valores = r.criteriaValue ? r.criteriaValue.split(',').map(s => s.trim()).filter(s => s) : ['(sin valor)'];
+        valores.forEach(val => {
+          const key = field + '|' + val;
+          if (!mapa[key]) {
+            mapa[key] = { field, valor: val, cantidad: 0, objetivos: [] };
+          }
+          mapa[key].cantidad = Math.max(mapa[key].cantidad, r.amount);
+          if (!mapa[key].objetivos.includes(o.title)) mapa[key].objetivos.push(o.title);
+        });
       }
     });
   });
-  // Convertir a array y ordenar por campo
   const arr = Object.values(mapa);
-  arr.sort((a,b) => a.field.localeCompare(b.field));
+  arr.sort((a,b) => a.field.localeCompare(b.field) || a.valor.localeCompare(b.valor));
   return arr;
 }
 
 function renderPlanner(){
-  const list = document.getElementById('plannerList');
-  const eligibles = objectives.filter(o=> getStatus(o)==='activo');
-  if(eligibles.length===0){
-    list.innerHTML = '<div class="empty">No tienes objetivos activos. Asegúrate de que el Excel se ha cargado correctamente.</div>';
-    document.getElementById('resumenRequisitos').style.display = 'none';
-    return;
-  }
-
-  // Mostrar resumen
-  const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
-  const resumenDiv = document.getElementById('resumenRequisitos');
-  if(selected.length === 0){
-    resumenDiv.style.display = 'none';
-  } else {
-    const resumen = generarResumen(selected);
-    if(resumen.length === 0){
-      resumenDiv.style.display = 'none';
-    } else {
-      resumenDiv.style.display = 'flex';
-      resumenDiv.innerHTML = resumen.map(item =>
-        `<span class="resumen-item"><strong>${escapeHtml(item.field)}</strong> ${escapeHtml(item.value)} <span class="cant">${item.cantidad}</span></span>`
-      ).join(' ');
-    }
-  }
-
-  // Lista de selección
-  list.innerHTML = eligibles.map(o=>{
-    const checked = liveSession.selected.includes(o.id);
-    return `<label>
-      <input type="checkbox" class="plan-check" data-id="${o.id}" ${checked?'checked':''}>
-      <span><strong>${escapeHtml(o.title)}</strong> ${o.groupName?`<span style="color:var(--muted)"> — ${escapeHtml(o.groupName)}</span>`:''}
-      <br><span style="color:var(--muted); font-size:11.5px;">Caduca: ${o.expiresAt? new Date(o.expiresAt).toLocaleString():'sin fecha'} · Modos: ${o.modes.length?escapeHtml(o.modes.join(', ')):'cualquiera'}</span></span>
-    </label>`;
-  }).join('');
-  list.querySelectorAll('.plan-check').forEach(cb=>{
-    cb.addEventListener('change', ()=>{
-      const id = cb.dataset.id;
-      if(cb.checked){ if(!liveSession.selected.includes(id)) liveSession.selected.push(id); }
-      else { liveSession.selected = liveSession.selected.filter(x=>x!==id); delete liveSession.counts[id]; }
-      storageSet(KEY_LIVE, liveSession);
-      renderPlanner();
-      renderLive();
-    });
-  });
-  renderPlannerAgg();
-}
-
-// Botón "Subir al tope": reordena los seleccionados al principio de la lista de selección
-document.getElementById('btnSubirTope').addEventListener('click', ()=>{
-  if(liveSession.selected.length === 0) return;
-  // Obtener todos los IDs de objetivos activos
-  const activos = objectives.filter(o=> getStatus(o)==='activo').map(o=>o.id);
-  // Mover los seleccionados al principio, manteniendo el orden de selección
-  const seleccionados = liveSession.selected.filter(id => activos.includes(id));
-  const noSeleccionados = activos.filter(id => !seleccionados.includes(id));
-  // Reordenar liveSession.selected (no es necesario, solo para mostrar, pero lo hacemos para que el orden visual cambie)
-  // Realmente el orden en la lista se basa en el orden de 'eligibles' que son todos los activos,
-  // pero podemos reordenar el array liveSession.selected para que los primeros sean los que se muestren primero?
-  // La lista de selección muestra todos los activos, no solo los seleccionados. Para "subir al tope" los seleccionados
-  // deberían aparecer al principio de la lista. Podemos reordenar 'objectives' temporalmente? Mejor reordenar la lista de renderizado.
-  // Podemos mantener un orden personalizado: guardamos el orden en una variable.
-  // Una forma sencilla: forzar que los seleccionados se muestren primero en la lista de elegibles.
-  // Vamos a reordenar el array 'eligibles' en renderPlanner según este criterio.
-  // Para ello, añadimos una variable global 'ordenPrioridad' que usaremos.
-  window.ordenPrioridad = [...seleccionados, ...noSeleccionados];
-  // Forzamos el renderizado
-  renderPlanner();
-  showToast('Seleccionados movidos al tope de la lista');
-});
-
-// Modificamos la función renderPlanner para que use el ordenPrioridad si existe
-const originalRenderPlanner = renderPlanner;
-renderPlanner = function(){
   const list = document.getElementById('plannerList');
   let eligibles = objectives.filter(o=> getStatus(o)==='activo');
   if(eligibles.length===0){
@@ -1072,7 +995,7 @@ renderPlanner = function(){
     eligibles.sort((a,b) => (orderMap[a.id] || Infinity) - (orderMap[b.id] || Infinity));
   }
 
-  // Mostrar resumen (igual que antes)
+  // Mostrar resumen
   const selected = objectives.filter(o=> liveSession.selected.includes(o.id) && getStatus(o)==='activo');
   const resumenDiv = document.getElementById('resumenRequisitos');
   if(selected.length === 0){
@@ -1083,9 +1006,20 @@ renderPlanner = function(){
       resumenDiv.style.display = 'none';
     } else {
       resumenDiv.style.display = 'flex';
-      resumenDiv.innerHTML = resumen.map(item =>
-        `<span class="resumen-item"><strong>${escapeHtml(item.field)}</strong> ${escapeHtml(item.value)} <span class="cant">${item.cantidad}</span></span>`
-      ).join(' ');
+      // Agrupar por campo para mostrarlo de forma más clara
+      const grupos = {};
+      resumen.forEach(item => {
+        if (!grupos[item.field]) grupos[item.field] = [];
+        grupos[item.field].push(item);
+      });
+      let html = '';
+      Object.keys(grupos).forEach(field => {
+        const items = grupos[field];
+        html += `<span class="resumen-item"><strong>${escapeHtml(field)}:</strong> `;
+        html += items.map(it => `${escapeHtml(it.valor)} (${it.cantidad})`).join(', ');
+        html += `</span>`;
+      });
+      resumenDiv.innerHTML = html;
     }
   }
 
@@ -1109,10 +1043,18 @@ renderPlanner = function(){
     });
   });
   renderPlannerAgg();
-};
+}
 
-// Sobrescribimos la función original para que use la nueva
-// Pero como ya está definida arriba, simplemente la reemplazamos.
+// Botón "Subir al tope"
+document.getElementById('btnSubirTope').addEventListener('click', ()=>{
+  if(liveSession.selected.length === 0) return;
+  const activos = objectives.filter(o=> getStatus(o)==='activo').map(o=>o.id);
+  const seleccionados = liveSession.selected.filter(id => activos.includes(id));
+  const noSeleccionados = activos.filter(id => !seleccionados.includes(id));
+  window.ordenPrioridad = [...seleccionados, ...noSeleccionados];
+  renderPlanner();
+  showToast('Seleccionados movidos al tope de la lista');
+});
 
 const MAX_ONCE_INICIAL = 11;
 const MAX_EN_PARTIDO = 16;
